@@ -1,68 +1,62 @@
 import streamlit as st
 from transformers import GPTNeoForCausalLM, GPT2Tokenizer
 import torch
-import re
 
-# Load model and tokenizer
+# Load the tokenizer and model (ensure this runs once at the top)
 @st.cache_resource
 def load_model():
     tokenizer = GPT2Tokenizer.from_pretrained("EleutherAI/gpt-neo-1.3B")
+    tokenizer.pad_token = tokenizer.eos_token  # Important fix!
     model = GPTNeoForCausalLM.from_pretrained("EleutherAI/gpt-neo-1.3B")
-    tokenizer.pad_token = tokenizer.eos_token
     return tokenizer, model
 
 tokenizer, model = load_model()
 
 # Streamlit UI
 st.set_page_config(page_title="Email Generator", page_icon="✉️")
-st.title("📬 GPT-Neo Email Generator")
+st.title("📧 GPT-Neo Email Generator")
 
 recipient = st.text_input("👤 Recipient's Name")
-event = st.text_input("📌 Event or Reason")
-instructions = st.text_area("📝 Extra Details (Date, Topic, Place, etc.)")
+event = st.text_input("🎯 Event or Occasion (e.g., AI Summit 2025)")
+instructions = st.text_area("📝 Extra Info (e.g., topic, location, time)")
 
-def clean_output(text):
-    text = text.strip().replace("\n\n", "\n")
-    lines = text.split("\n")
-    seen = set()
-    final_lines = []
-    for line in lines:
-        if line.strip() and line.strip() not in seen:
-            final_lines.append(line.strip())
-            seen.add(line.strip())
-    cleaned = "\n".join(final_lines)
-    return cleaned
-
-if st.button("Generate Email", key="generate_btn"):
+if st.button("Generate Email", key="generate_button"):
     if not recipient or not event:
-        st.warning("⚠️ Please enter both recipient and event.")
+        st.warning("⚠️ Please fill in the recipient name and event.")
     else:
-        with st.spinner("⏳ Generating email..."):
-            prompt = (
-                f"Write a formal, polite and complete email to Dr. {recipient} about {event}. "
-                f"The email should include these details: {instructions}.\n\n"
-                f"Start the email like this:\n"
-                f"Dear Dr. {recipient},\n"
-            )
+        # Better structured prompt
+        prompt = (
+            f"Write a professional and concise email.\n\n"
+            f"To: {recipient}\n"
+            f"Subject: Invitation to {event}\n\n"
+            f"Body:\n"
+            f"Dear {recipient},\n\n"
+            f"I hope this message finds you well. I am writing to invite you to {event}, "
+            f"which will be held on August 10 at IIT Bombay. The theme of the event is 'Responsible AI'. "
+            f"{instructions}\n\n"
+            f"Best regards,\nYour Name\n"
+            f"---\n(Do not add anything after this.)"
+        )
 
+        with st.spinner("Generating your email..."):
             input_ids = tokenizer(prompt, return_tensors="pt").input_ids
 
-            try:
-                output = model.generate(
-                    input_ids,
-                    max_length=350,
-                    do_sample=True,
-                    temperature=0.7,
-                    top_k=50,
-                    top_p=0.95,
-                    pad_token_id=tokenizer.eos_token_id
-                )
-                decoded = tokenizer.decode(output[0], skip_special_tokens=True)
-                generated_email = decoded[len(prompt):].strip()
+            output = model.generate(
+                input_ids,
+                max_new_tokens=120,
+                do_sample=True,
+                temperature=0.7,
+                top_k=50,
+                top_p=0.95,
+                repetition_penalty=1.2,
+                pad_token_id=tokenizer.eos_token_id,
+                eos_token_id=tokenizer.eos_token_id,
+            )
 
-                st.subheader("✉️ Generated Email")
-                st.write(f"Dear Dr. {recipient},\n\n" + clean_output(generated_email))
-                st.success("✅ Email generated successfully!")
+            decoded = tokenizer.decode(output[0], skip_special_tokens=True)
+            email = decoded.split('---')[0].strip()  # Trim any noise after the separator
 
-            except Exception as e:
-                st.error(f"❌ Error generating email: {e}")
+        st.subheader("✉️ Generated Email")
+        st.write(email)
+
+        st.success("✅ Email generated successfully!")
