@@ -32,7 +32,6 @@ if st.button("Generate Email", key="generate_button"):
             f"Body:\n"
             f"Dear {recipient},\n\n"
             f"I hope this message finds you well. I am writing to invite you to {event}, "
-            f"which will be held on August 10 at IIT Bombay. The theme of the event is 'Responsible AI'. "
             f"{instructions}\n\n"
             f"Best regards,\nYour Name\n"
             f"---\n(Do not add anything after this.)"
